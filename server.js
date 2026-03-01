@@ -18,14 +18,20 @@ app.get("/", (req, res) => {
 
 // ── Helper: Get PhonePe OAuth Token ──────────────────────────
 async function getAccessToken() {
-  // PhonePe OAuth requires application/x-www-form-urlencoded — NOT JSON
+  // PhonePe OAuth requires application/x-www-form-urlencoded
+  // SU prefix = sandbox credentials → use preprod OAuth endpoint
+  const isSandbox = process.env.CLIENT_ID.startsWith("SU");
+  const oauthUrl = isSandbox
+    ? "https://api-preprod.phonepe.com/apis/pg-sandbox/v1/oauth/token"
+    : "https://api.phonepe.com/apis/identity-manager/v1/oauth/token";
+
   const params = new URLSearchParams();
   params.append("client_id", process.env.CLIENT_ID);
   params.append("client_secret", process.env.CLIENT_SECRET);
   params.append("grant_type", "client_credentials");
 
   const response = await axios.post(
-    "https://api.phonepe.com/apis/identity-manager/v1/oauth/token",
+    oauthUrl,
     params.toString(),
     {
       headers: {
@@ -65,9 +71,14 @@ app.post("/create-payment", async (req, res) => {
     // Step 2: Create unique order ID
     const merchantOrderId = bookingId || "ORDER_" + Date.now();
 
-    // Step 3: Call PhonePe Checkout V2 Pay API (correct production endpoint)
+    // Step 3: Call PhonePe Checkout V2 Pay API
+    // NOTE: CLIENT_ID starts with 'SU' = Sandbox environment
+    const PHONEPE_PAY_URL = process.env.CLIENT_ID.startsWith("SU")
+      ? "https://api-preprod.phonepe.com/apis/pg-sandbox/checkout/v2/pay"  // Sandbox
+      : "https://api.phonepe.com/apis/pg/checkout/v2/pay";                 // Production
+
     const paymentResponse = await axios.post(
-      "https://api.phonepe.com/apis/pg/checkout/v2/pay",   // ✅ Correct V2 endpoint
+      PHONEPE_PAY_URL,
       {
         merchantOrderId: merchantOrderId,
         amount: Number(amount) * 100,  // paise

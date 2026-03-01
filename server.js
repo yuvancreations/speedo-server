@@ -24,6 +24,7 @@ async function getAccessToken() {
   params.append("client_id", process.env.CLIENT_ID);
   params.append("client_secret", process.env.CLIENT_SECRET);
   params.append("grant_type", "client_credentials");
+  params.append("client_version", process.env.CLIENT_VERSION || "1"); // ✅ Required
 
   const response = await axios.post(
     "https://api.phonepe.com/apis/identity-manager/v1/oauth/token",
@@ -66,14 +67,9 @@ app.post("/create-payment", async (req, res) => {
     // Step 2: Create unique order ID
     const merchantOrderId = bookingId || "ORDER_" + Date.now();
 
-    // Step 3: Call PhonePe Checkout V2 Pay API
-    // NOTE: CLIENT_ID starts with 'SU' = Sandbox environment
-    const PHONEPE_PAY_URL = process.env.CLIENT_ID.startsWith("SU")
-      ? "https://api-preprod.phonepe.com/apis/pg-sandbox/checkout/v2/pay"  // Sandbox
-      : "https://api.phonepe.com/apis/pg/checkout/v2/pay";                 // Production
-
+    // Step 3: Call PhonePe Checkout V2 Pay API (production endpoint works for all accounts)
     const paymentResponse = await axios.post(
-      PHONEPE_PAY_URL,
+      "https://api.phonepe.com/apis/pg/checkout/v2/pay",
       {
         merchantOrderId: merchantOrderId,
         amount: Number(amount) * 100,  // paise

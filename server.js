@@ -13,7 +13,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // ── Root check ────────────────────────────────────────────────
 app.get("/", (req, res) => {
-  res.send("Speedo Payment Server Running 🚀");
+  res.send("Speedo Payment Server Running 🚀 v2");
 });
 
 // ── Helper: Get PhonePe OAuth Token ──────────────────────────

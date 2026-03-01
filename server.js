@@ -18,21 +18,15 @@ app.get("/", (req, res) => {
 
 // ── Helper: Get PhonePe OAuth Token ──────────────────────────
 async function getAccessToken() {
-  // PhonePe OAuth requires application/x-www-form-urlencoded
-  // SU prefix = sandbox credentials → use preprod OAuth endpoint
-  const isSandbox = process.env.CLIENT_ID.startsWith("SU");
-  const oauthUrl = isSandbox
-    ? "https://api-preprod.phonepe.com/apis/pg-sandbox/v1/oauth/token"
-    : "https://api.phonepe.com/apis/identity-manager/v1/oauth/token";
-
+  // PhonePe OAuth — always uses the production identity-manager endpoint
+  // (even for sandbox CLIENT_IDs starting with SU)
   const params = new URLSearchParams();
   params.append("client_id", process.env.CLIENT_ID);
   params.append("client_secret", process.env.CLIENT_SECRET);
-  params.append("client_version", process.env.CLIENT_VERSION || "1"); // ✅ Required by PhonePe V2
   params.append("grant_type", "client_credentials");
 
   const response = await axios.post(
-    oauthUrl,
+    "https://api.phonepe.com/apis/identity-manager/v1/oauth/token",
     params.toString(),
     {
       headers: {

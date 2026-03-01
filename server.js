@@ -2,31 +2,31 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const axios = require("axios");
+const qs = require("querystring");
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 
-// Root route
 app.get("/", (req, res) => {
   res.send("Speedo Payment Server Running 🚀");
 });
 
-// ✅ Correct OAuth using Basic Auth
+// ✅ Correct PhonePe OAuth (Form-Encoded Body)
 app.get("/get-token", async (req, res) => {
   try {
-    const authString = Buffer.from(
-      `${process.env.CLIENT_ID}:${process.env.CLIENT_SECRET}`
-    ).toString("base64");
-
     const response = await axios.post(
       "https://api.phonepe.com/apis/identity-manager/v1/oauth/token",
-      "grant_type=client_credentials",
+      qs.stringify({
+        client_id: process.env.CLIENT_ID,
+        client_secret: process.env.CLIENT_SECRET,
+        grant_type: "client_credentials",
+      }),
       {
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
-          Authorization: `Basic ${authString}`,
+          Accept: "application/json",
         },
       }
     );

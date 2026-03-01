@@ -24,8 +24,8 @@ app.get("/get-token", async (req, res) => {
     const response = await axios.post(
       "https://api.phonepe.com/apis/identity-manager/v1/oauth/token",
       {
-        client_id: process.env.SU2510011750401548106040,
-        client_secret: process.env.76108613-904e-486e-ac7f-e8a149736bfc,
+        client_id: process.env.CLIENT_ID,
+        client_secret: process.env.CLIENT_SECRET,
         grant_type: "client_credentials",
       }
     );

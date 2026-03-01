@@ -45,3 +45,65 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
+// ✅ Create Payment Route (Production)
+app.post("/create-payment", async (req, res) => {
+  try {
+    const { amount, mobileNumber } = req.body;
+
+    if (!amount || !mobileNumber) {
+      return res.status(400).json({ message: "Amount and mobileNumber required" });
+    }
+
+    // 1️⃣ Get Access Token
+    const tokenResponse = await axios.post(
+      "https://api.phonepe.com/apis/identity-manager/v1/oauth/token",
+      {
+        client_id: process.env.CLIENT_ID,
+        client_secret: process.env.CLIENT_SECRET,
+        grant_type: "client_credentials"
+      },
+      {
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        }
+      }
+    );
+
+    const accessToken = tokenResponse.data.access_token;
+
+    // 2️⃣ Create Unique Order ID
+    const merchantOrderId = "ORDER_" + Date.now();
+
+    // 3️⃣ Payment Request
+    const paymentResponse = await axios.post(
+      "https://api.phonepe.com/apis/pg/v1/pay",
+      {
+        merchantId: process.env.MERCHANT_ID,
+        merchantOrderId: merchantOrderId,
+        amount: amount * 100, // convert to paise
+        redirectUrl: "https://speedo-server.onrender.com/payment-status",
+        redirectMode: "POST",
+        mobileNumber: mobileNumber,
+        paymentInstrument: {
+          type: "UPI_INTENT"
+        }
+      },
+      {
+        headers: {
+          Authorization: `O-Bearer ${accessToken}`,
+          "Content-Type": "application/json"
+        }
+      }
+    );
+
+    res.json(paymentResponse.data);
+
+  } catch (error) {
+    res.status(500).json({
+      message: "Payment creation failed",
+      error: error.response?.data || error.message
+    });
+  }
+});

@@ -13,18 +13,23 @@ app.get("/", (req, res) => {
   res.send("Speedo Payment Server Running 🚀");
 });
 
-// ✅ Correct PhonePe OAuth (Form-Encoded Raw String Body)
+// ✅ PhonePe OAuth using JSON body (correct format)
 app.get("/get-token", async (req, res) => {
   try {
-    const response = await axios({
-      method: "post",
-      url: "https://api.phonepe.com/apis/identity-manager/v1/oauth/token",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        "Accept": "application/json"
+    const response = await axios.post(
+      "https://api.phonepe.com/apis/identity-manager/v1/oauth/token",
+      {
+        client_id: process.env.CLIENT_ID,
+        client_secret: process.env.CLIENT_SECRET,
+        grant_type: "client_credentials"
       },
-      data: `client_id=${process.env.CLIENT_ID}&client_secret=${process.env.CLIENT_SECRET}&grant_type=client_credentials`
-    });
+      {
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        }
+      }
+    );
 
     res.json(response.data);
   } catch (error) {

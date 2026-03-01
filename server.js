@@ -4,106 +4,141 @@ const cors = require("cors");
 const axios = require("axios");
 
 const app = express();
+const PORT = process.env.PORT || 5000;
 
+// ── Middleware (MUST be before routes) ────────────────────────
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// Root check
+// ── Root check ────────────────────────────────────────────────
 app.get("/", (req, res) => {
   res.send("Speedo Payment Server Running 🚀");
 });
 
-// ✅ PhonePe OAuth using JSON body (correct format)
+// ── Helper: Get PhonePe OAuth Token ──────────────────────────
+async function getAccessToken() {
+  const response = await axios.post(
+    "https://api.phonepe.com/apis/identity-manager/v1/oauth/token",
+    {
+      client_id: process.env.CLIENT_ID,
+      client_secret: process.env.CLIENT_SECRET,
+      grant_type: "client_credentials",
+    },
+    {
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+      },
+    }
+  );
+  return response.data.access_token;
+}
+
+// ── GET /get-token (debug endpoint) ─────────────────────────
 app.get("/get-token", async (req, res) => {
   try {
-    const response = await axios.post(
-      "https://api.phonepe.com/apis/identity-manager/v1/oauth/token",
-      {
-        client_id: process.env.CLIENT_ID,
-        client_secret: process.env.CLIENT_SECRET,
-        grant_type: "client_credentials"
-      },
-      {
-        headers: {
-          "Content-Type": "application/json",
-          "Accept": "application/json"
-        }
-      }
-    );
-
-    res.json(response.data);
+    const token = await getAccessToken();
+    res.json({ access_token: token });
   } catch (error) {
     res.status(500).json({
       message: "Token generation failed",
-      error: error.response?.data || error.message
+      error: error.response?.data || error.message,
     });
   }
 });
 
-const PORT = process.env.PORT || 5000;
-
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
-
-// ✅ Create Payment Route (Production)
+// ── POST /create-payment ──────────────────────────────────────
 app.post("/create-payment", async (req, res) => {
   try {
-    const { amount, mobileNumber } = req.body;
+    const { amount, mobileNumber, bookingId } = req.body;
 
     if (!amount || !mobileNumber) {
-      return res.status(400).json({ message: "Amount and mobileNumber required" });
+      return res.status(400).json({ message: "amount and mobileNumber are required" });
     }
 
-    // 1️⃣ Get Access Token
-    const tokenResponse = await axios.post(
-      "https://api.phonepe.com/apis/identity-manager/v1/oauth/token",
-      {
-        client_id: process.env.CLIENT_ID,
-        client_secret: process.env.CLIENT_SECRET,
-        grant_type: "client_credentials"
-      },
-      {
-        headers: {
-          "Content-Type": "application/json",
-          "Accept": "application/json"
-        }
-      }
-    );
+    // Step 1: Get access token
+    const accessToken = await getAccessToken();
 
-    const accessToken = tokenResponse.data.access_token;
+    // Step 2: Create unique order ID
+    const merchantOrderId = bookingId || "ORDER_" + Date.now();
 
-    // 2️⃣ Create Unique Order ID
-    const merchantOrderId = "ORDER_" + Date.now();
-
-    // 3️⃣ Payment Request
+    // Step 3: Call PhonePe Pay API
+    // Amount: Flutter sends rupees, multiply by 100 for paise
     const paymentResponse = await axios.post(
       "https://api.phonepe.com/apis/pg/v1/pay",
       {
-        merchantId: process.env.MERCHANT_ID,
         merchantOrderId: merchantOrderId,
-        amount: amount * 100, // convert to paise
-        redirectUrl: "https://speedo-server.onrender.com/payment-status",
-        redirectMode: "POST",
-        mobileNumber: mobileNumber,
-        paymentInstrument: {
-          type: "UPI_INTENT"
-        }
+        amount: Number(amount) * 100, // paise
+        redirectUrl: "https://speedo-server.onrender.com/payment-status?txnId=" + merchantOrderId,
+        redirectMode: "REDIRECT",
+        paymentFlow: {
+          type: "PG_CHECKOUT",
+          message: "Speedo Airport Ride Booking",
+          merchantUserId: "MUID_" + mobileNumber,
+          mobileNumber: String(mobileNumber),
+        },
       },
       {
         headers: {
           Authorization: `O-Bearer ${accessToken}`,
-          "Content-Type": "application/json"
-        }
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+        },
       }
     );
 
-    res.json(paymentResponse.data);
+    // Return full response — Flutter extracts the redirect URL
+    res.json({
+      success: true,
+      merchantTransactionId: merchantOrderId,
+      data: paymentResponse.data,
+    });
 
   } catch (error) {
+    console.error("Payment creation error:", error.response?.data || error.message);
     res.status(500).json({
       message: "Payment creation failed",
-      error: error.response?.data || error.message
+      error: error.response?.data || error.message,
     });
   }
+});
+
+// ── GET /payment-status ───────────────────────────────────────
+app.get("/payment-status", async (req, res) => {
+  try {
+    const { txnId } = req.query;
+    if (!txnId) return res.status(400).json({ message: "txnId required" });
+
+    const accessToken = await getAccessToken();
+
+    const statusResponse = await axios.get(
+      `https://api.phonepe.com/apis/pg/v1/order/${txnId}/status`,
+      {
+        headers: {
+          Authorization: `O-Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+        },
+      }
+    );
+
+    const state = statusResponse.data?.state || "FAILED";
+    // PhonePe states: COMPLETED, FAILED, PENDING
+    res.json({ status: state, raw: statusResponse.data });
+
+  } catch (error) {
+    res.status(500).json({ status: "FAILED", error: error.response?.data || error.message });
+  }
+});
+
+// ── POST /payment-callback (PhonePe webhook) ──────────────────
+app.post("/payment-callback", (req, res) => {
+  console.log("PhonePe callback received:", JSON.stringify(req.body));
+  res.status(200).json({ message: "OK" });
+});
+
+// ── Start Server ──────────────────────────────────────────────
+app.listen(PORT, () => {
+  console.log(`✅ Speedo server running on port ${PORT}`);
 });

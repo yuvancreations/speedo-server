@@ -18,16 +18,18 @@ app.get("/", (req, res) => {
 
 // ── Helper: Get PhonePe OAuth Token ──────────────────────────
 async function getAccessToken() {
+  // PhonePe OAuth requires application/x-www-form-urlencoded — NOT JSON
+  const params = new URLSearchParams();
+  params.append("client_id", process.env.CLIENT_ID);
+  params.append("client_secret", process.env.CLIENT_SECRET);
+  params.append("grant_type", "client_credentials");
+
   const response = await axios.post(
     "https://api.phonepe.com/apis/identity-manager/v1/oauth/token",
-    {
-      client_id: process.env.CLIENT_ID,
-      client_secret: process.env.CLIENT_SECRET,
-      grant_type: "client_credentials",
-    },
+    params.toString(),
     {
       headers: {
-        "Content-Type": "application/json",
+        "Content-Type": "application/x-www-form-urlencoded",
         "Accept": "application/json",
       },
     }

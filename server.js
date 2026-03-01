@@ -28,6 +28,7 @@ async function getAccessToken() {
   const params = new URLSearchParams();
   params.append("client_id", process.env.CLIENT_ID);
   params.append("client_secret", process.env.CLIENT_SECRET);
+  params.append("client_version", process.env.CLIENT_VERSION || "1"); // ✅ Required by PhonePe V2
   params.append("grant_type", "client_credentials");
 
   const response = await axios.post(

@@ -65,20 +65,18 @@ app.post("/create-payment", async (req, res) => {
     // Step 2: Create unique order ID
     const merchantOrderId = bookingId || "ORDER_" + Date.now();
 
-    // Step 3: Call PhonePe Pay API
-    // Amount: Flutter sends rupees, multiply by 100 for paise
+    // Step 3: Call PhonePe Checkout V2 Pay API (correct production endpoint)
     const paymentResponse = await axios.post(
-      "https://api.phonepe.com/apis/pg/v1/pay",
+      "https://api.phonepe.com/apis/pg/checkout/v2/pay",   // ✅ Correct V2 endpoint
       {
         merchantOrderId: merchantOrderId,
-        amount: Number(amount) * 100, // paise
-        redirectUrl: "https://speedo-server.onrender.com/payment-status?txnId=" + merchantOrderId,
-        redirectMode: "REDIRECT",
+        amount: Number(amount) * 100,  // paise
         paymentFlow: {
           type: "PG_CHECKOUT",
           message: "Speedo Airport Ride Booking",
-          merchantUserId: "MUID_" + mobileNumber,
-          mobileNumber: String(mobileNumber),
+          merchantUrls: {
+            redirectUrl: "https://speedo-server.onrender.com/payment-status?txnId=" + merchantOrderId,
+          },
         },
       },
       {
